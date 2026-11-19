@@ -89,6 +89,25 @@ a.btn{text-decoration:none}
     <div id="revList"></div>
   </section>
 
+  <section id="tab-rule" class="hide">
+    <div class="card">
+      <div style="font-weight:700;font-size:16px">🟨 쇼핑왕의 철칙 만들기</div>
+      <p class="meta" style="margin:4px 0 0">스레드, 인스타, 유튜브 글과 철칙 릴스를 같이 만들어요.</p>
+      <div style="display:flex;gap:8px">
+        <div style="flex:1"><label class="l"><span>번호</span></label><input id="ruleN" type="number" min="1"></div>
+        <div style="flex:1"><label class="l"><span>유형</span></label>
+          <select id="ruleType" style="width:100%;border:1px solid var(--line);border-radius:10px;padding:9px;font:inherit;background:var(--bg);color:var(--tx)">
+            <option value="자동">자동 (번갈아)</option><option>습관형</option><option>계산형</option>
+          </select></div>
+      </div>
+      <label class="l"><span>주제나 직접 쓴 글 (선택, 비우면 새 주제를 골라줘요)</span></label>
+      <textarea id="ruleMemo" rows="5" placeholder="예) 금요일 밤 12시 넘어서 결제 누르지 않기. 한 주 고생한 보상심리 + 새벽 감성 = 다음 날 후회"></textarea>
+      <button class="btn y w" id="ruleBtn" style="margin-top:12px">철칙 글 + 릴스 만들기</button>
+      <p class="meta" id="ruleMeta" style="margin-top:8px"></p>
+    </div>
+    <div class="card"><div style="font-weight:700;margin-bottom:6px">지난 철칙</div><div id="ruleList" class="meta" style="margin:0"></div></div>
+  </section>
+
   <section id="tab-hist" class="hide"><div id="histList"></div></section>
 
   <section id="tab-set" class="hide">
@@ -110,6 +129,7 @@ a.btn{text-decoration:none}
 
 <nav>
   <button data-tab="cand" class="on">후보</button>
+  <button data-tab="rule">철칙</button>
   <button data-tab="review">검토 <span id="revCnt"></span></button>
   <button data-tab="hist">기록</button>
 </nav>
@@ -156,15 +176,16 @@ const dispatch = wf => api(`actions/workflows/${wf}/dispatches`, { method: 'POST
 let tab = 'cand';
 function show(t) {
   tab = t;
-  ['cand', 'review', 'hist', 'set'].forEach(n => $('#tab-' + n).classList.toggle('hide', n !== t));
+  ['cand', 'rule', 'review', 'hist', 'set'].forEach(n => $('#tab-' + n).classList.toggle('hide', n !== t));
   document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.tab === t));
   $('#candBar').classList.toggle('hide', t !== 'cand');
   if (t === 'cand' && !cand) loadCand();
   if (t === 'review') loadDrafts();
   if (t === 'hist') loadHist();
+  if (t === 'rule') loadRules();
 }
 document.querySelectorAll('nav button').forEach(b => b.onclick = () => show(b.dataset.tab));
-$('#reloadBtn').onclick = () => { if (tab === 'cand') loadCand(); else if (tab === 'review') loadDrafts(); else if (tab === 'hist') loadHist(); };
+$('#reloadBtn').onclick = () => { if (tab === 'rule') loadRules(); else if (tab === 'cand') loadCand(); else if (tab === 'review') loadDrafts(); else if (tab === 'hist') loadHist(); };
 $('#setBtn').onclick = () => { const c = cfg(); $('#cOwner').value = c.owner; $('#cRepo').value = c.repo; $('#cToken').value = c.token; show('set'); };
 $('#saveBtn').onclick = () => {
   store.set('owner', $('#cOwner').value.trim()); store.set('repo', $('#cRepo').value.trim()); store.set('token', $('#cToken').value.trim());
@@ -264,7 +285,10 @@ function renderDrafts(list) {
   if (!list.length) { $('#revList').innerHTML = '<p class="empty">없어요</p>'; return; }
   $('#revList').innerHTML = list.map(d => {
     const i = drafts.indexOf(d), p = d.product || {};
-    const head = `<div class="dhead"><img src="${esc(p.image)}" alt="" referrerpolicy="no-referrer"><div style="min-width:0"><div class="nm">${esc(p.name)}</div>
+    const head = d.kind === 'rule'
+      ? `<div><span class="badge n">쇼핑왕의 철칙 #${esc(d.n)}</span><span class="badge">${esc(d.type || '')}</span>
+         <div style="font-weight:700;margin-top:6px">${esc(d.title || d.memo || '')}</div></div>`
+      : `<div class="dhead"><img src="${esc(p.image)}" alt="" referrerpolicy="no-referrer"><div style="min-width:0"><div class="nm">${esc(p.name)}</div>
       <span class="badge">${won(p.price)}</span>${d.memo ? '<span class="badge y">실사용 메모</span>' : ''}</div></div>`;
     if (d.status === 'error' || d.status === 'failed') return `<div class="card">${head}
       <p class="err">${esc(d.error || d.lastError)}</p>
@@ -286,19 +310,13 @@ function renderDrafts(list) {
       ${reelBox}
       ${d.video?.url ? `<div class="row"><a class="btn y" href="${esc(d.video.url)}" download="pickdeal_${esc(d.id)}.mp4">⬇️ 릴스 저장</a><button class="btn" data-a="copyAll" data-i="${i}">글 전체 복사</button></div>` : ''}
       <details><summary>릴스 문구 고치기</summary><div class="rf">
-        <label class="l"><span>1장면 훅 (3줄, 가운데 줄 빨간색)</span></label><textarea rows="3" data-r="hook" data-i="${i}">${esc((r.hook || []).join('\n'))}</textarea>
-        <label class="l"><span>2장면 상황 (3줄, "위 / 아래")</span></label><textarea rows="3" data-r="scenes" data-i="${i}">${esc((r.scenes || []).map(x => x.a + ' / ' + x.b).join('\n'))}</textarea>
-        <label class="l"><span>2장면 빨간 결론</span></label><input data-r="punch" data-i="${i}" value="${esc(r.punch)}">
-        <label class="l"><span>3장면 사진 위 제목 (2줄)</span></label><textarea rows="2" data-r="head" data-i="${i}">${esc((r.head || []).join('\n'))}</textarea>
-        <label class="l"><span>3장면 특징 배지 (2줄)</span></label><textarea rows="2" data-r="badges" data-i="${i}">${esc((r.badges || []).join('\n'))}</textarea>
-        <label class="l"><span>4장면 마무리</span></label><input data-r="close" data-i="${i}" value="${esc(r.close)}">
-        <label class="l"><span>4장면 질문 (3줄)</span></label><textarea rows="3" data-r="question" data-i="${i}">${esc((r.question || []).join('\n'))}</textarea>
+        ${reelEditor(d, i)}
         <button class="btn y w" data-a="rerender" data-i="${i}" style="margin-top:10px">이 문구로 릴스 다시 만들기</button>
       </div></details>
       ${(d.hooks || []).length ? `<details><summary>첫 줄 후보 ${d.hooks.length}개 (누르면 교체)</summary>
         ${d.hooks.map((h, k) => `<button class="hook" data-a="hook" data-i="${i}" data-k="${k}">${esc(h.text)}<small>${esc(h.type)} · ${esc(h.why)}</small></button>`).join('')}</details>` : ''}
       ${field(d, i, 'threads', '🧵 스레드 본글', 8)}
-      ${field(d, i, 'comment', '💬 스레드 첫 댓글 (링크)', 4)}
+      ${field(d, i, 'comment', d.kind === 'rule' ? '💬 첫 답글 (내가 먼저 다는 댓글)' : '💬 스레드 첫 댓글 (링크)', d.kind === 'rule' ? 2 : 4)}
       ${field(d, i, 'insta', '📸 인스타 캡션', 6)}
       ${d.youtubeTitle != null ? field(d, i, 'youtubeTitle', '▶️ 유튜브 제목', 2) + field(d, i, 'youtube', '▶️ 유튜브 설명', 6) : ''}
       ${d.check ? `<div class="check">점검: ${esc(d.check)}</div>` : ''}
@@ -313,6 +331,31 @@ function renderDrafts(list) {
       <button class="btn w" data-a="manual" data-i="${i}" style="margin-top:8px">✅ 직접 올렸어요 (기록으로 옮기기)</button></div>`;
   }).join('');
   document.querySelectorAll('#revList textarea[data-f]').forEach(countChars);
+}
+const REEL_SPEC = {
+  deal: [['hook', '1장면 훅 (3줄, 가운데 줄 빨간색)', 'lines', 3], ['scenes', '2장면 상황 (3줄, "위 / 아래")', 'scenes', 3], ['punch', '2장면 빨간 결론', 'text'],
+    ['head', '3장면 사진 위 제목 (2줄)', 'lines', 2], ['badges', '3장면 특징 배지 (2줄)', 'lines', 2], ['close', '4장면 마무리', 'text'], ['question', '4장면 질문 (3줄)', 'lines', 3]],
+  rule: [['hook', '1장면 제목 (3줄, 가운데 줄 빨간색)', 'lines', 3], ['scenes', '2장면 상황 (3줄, "위 / 아래")', 'scenes', 3], ['punch', '2장면 빨간 결론', 'text'],
+    ['stepsTitle', '3장면 방법 제목', 'text'], ['steps', '3장면 방법 (3줄)', 'lines', 3], ['answer', '3장면 한 줄 정리', 'text'],
+    ['rule', '4장면 오늘의 철칙 (2줄)', 'lines', 2], ['question', '4장면 질문 (3줄)', 'lines', 3]]
+};
+function reelEditor(d, i) {
+  const r = d.reel || {};
+  return REEL_SPEC[d.kind === 'rule' ? 'rule' : 'deal'].map(([k, label, type, rows]) => {
+    const head = `<label class="l"><span>${label}</span></label>`;
+    if (type === 'text') return head + `<input data-r="${k}" data-i="${i}" value="${esc(r[k])}">`;
+    const val = type === 'scenes' ? (r[k] || []).map(x => x.a + ' / ' + x.b).join('\n') : (r[k] || []).join('\n');
+    return head + `<textarea rows="${rows}" data-r="${k}" data-i="${i}">${esc(val)}</textarea>`;
+  }).join('');
+}
+function readReel(d, i) {
+  const reel = {};
+  for (const [k, , type] of REEL_SPEC[d.kind === 'rule' ? 'rule' : 'deal']) {
+    const v = document.querySelector(`[data-r="${k}"][data-i="${i}"]`).value;
+    const ls = v.split('\n').map(x => x.trim()).filter(Boolean);
+    reel[k] = type === 'text' ? v.trim() : type === 'scenes' ? ls.map(x => { const [a, ...b] = x.split('/'); return { a: (a || '').trim(), b: b.join('/').trim() }; }) : ls;
+  }
+  return reel;
 }
 const LIMITS = { threads: 500, comment: 500, insta: 2200, youtubeTitle: 100, youtube: 5000 };
 function field(d, i, f, label, rows) {
@@ -352,7 +395,7 @@ $('#revList').addEventListener('click', async e => {
   }
   if (a === 'del' && !confirm('이 글을 버릴까요?')) return;
   if (a === 'manual' && !confirm('직접 올린 걸로 기록하고 검토 목록에서 뺄까요?')) return;
-  if (a === 'approve' && !d.video?.url && !confirm('릴스가 없어요. 상품 사진으로 올릴까요?')) return;
+  if (a === 'approve' && !d.video?.url && !confirm(d.kind === 'rule' ? '릴스가 없어요. 글만 올릴까요? (인스타는 실패해요)' : '릴스가 없어요. 상품 사진으로 올릴까요?')) return;
   const { _path, _sha, ...data } = d;
   b.disabled = true;
   try {
@@ -364,12 +407,7 @@ $('#revList').addEventListener('click', async e => {
       await putJson(_path, { ...data, status: 'approved', targets, publishAt: t ? new Date(t).toISOString() : new Date().toISOString(), approvedAt: new Date().toISOString() }, '승인', _sha);
       toast(t ? `${fmt(new Date(t).toISOString())} 예약했어요` : '승인! 1~2분 안에 올라가요');
     } else if (a === 'rerender') {
-      const v = k => document.querySelector(`[data-r="${k}"][data-i="${i}"]`).value;
-      const ls = k => v(k).split('\n').map(x => x.trim()).filter(Boolean);
-      const reel = {
-        hook: ls('hook'), punch: v('punch').trim(), head: ls('head'), badges: ls('badges'), close: v('close').trim(), question: ls('question'),
-        scenes: ls('scenes').map(x => { const [a2, ...b2] = x.split('/'); return { a: (a2 || '').trim(), b: b2.join('/').trim() }; })
-      };
+      const reel = readReel(d, i);
       await putJson(`data/requests/${Date.now()}.json`, { render: { draftId: d.id, reel } }, '릴스 다시 만들기');
       toast('릴스 다시 만드는 중. 2~3분 뒤 새로고침');
       b.disabled = false; return;
@@ -377,7 +415,8 @@ $('#revList').addEventListener('click', async e => {
       const cur = await gh('data/history.json', { allow404: true });
       const hist = cur ? JSON.parse(decodeURIComponent(escape(atob(cur.content.replace(/\n/g, ''))))) : { posted: [] };
       const now = new Date();
-      hist.posted.unshift({ productId: d.productId, name: d.product.name, image: d.product.image, link: d.link, postedAt: now.toISOString(),
+      hist.posted.unshift({ kind: d.kind || 'deal', productId: d.productId || '', name: d.kind === 'rule' ? `쇼핑왕의 철칙 #${d.n} ${d.title}` : d.product.name,
+        image: d.product?.image || '', link: d.link || '', postedAt: now.toISOString(),
         postedKst: `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`, manual: true, threadsUrl: '', instaUrl: '' });
       await putJson('data/history.json', hist, '직접 게시 기록', cur?.sha);
       await delFile(_path, _sha, '직접 게시');
@@ -386,6 +425,9 @@ $('#revList').addEventListener('click', async e => {
       await putJson(_path, { ...data, status: 'draft' }, '승인 취소', _sha); toast('검토로 돌렸어요');
     } else if (a === 'retryPub') {
       await putJson(_path, { ...data, status: 'approved', tries: 0, lastError: '' }, '게시 재시도', _sha); toast('다시 올려볼게요');
+    } else if (a === 'rewrite' && d.kind === 'rule') {
+      await putJson(`data/requests/${Date.now()}.json`, { rule: { n: d.n, type: d.type, memo: d.memo || '' } }, `철칙 #${d.n} 다시 쓰기`);
+      await delFile(_path, _sha, '다시 쓰기'); toast('다시 쓰는 중. 2~3분 뒤 새로고침');
     } else if (a === 'rewrite') {
       await putJson(`data/requests/${Date.now()}.json`, { items: [{ id: `${d.product.id}-${Date.now().toString(36)}`, product: d.product, memo: d.memo || '', link: d.link }] }, '다시 쓰기');
       await delFile(_path, _sha, '다시 쓰기'); toast('다시 쓰는 중. 잠시 후 새로고침');
@@ -395,6 +437,30 @@ $('#revList').addEventListener('click', async e => {
     loadDrafts();
   } catch (err) { toast(err.message); b.disabled = false; }
 });
+
+// ---------- 철칙 ----------
+async function loadRules() {
+  try {
+    const r = await getJson('data/rules.json', null);
+    const next = r?.next || 25, last = r?.lastType || '계산형';
+    if (!$('#ruleN').dataset.touched) $('#ruleN').value = next;
+    $('#ruleMeta').textContent = `지난 편 유형: ${last} → 자동이면 ${last === '습관형' ? '계산형' : '습관형'} 차례`;
+    const done = (r?.done || []).filter(x => x.n).sort((a, b) => b.n - a.n);
+    $('#ruleList').innerHTML = done.length ? done.map(x => `#${x.n} ${esc(x.title)} <span class="badge">${esc(x.type)}</span>`).join('<br>') : '첫 철칙을 만들면 여기에 쌓여요 (#24까지는 기본으로 기억하고 있어요)';
+  } catch (e) { $('#ruleMeta').textContent = e.message; }
+}
+$('#ruleN').addEventListener('input', () => { $('#ruleN').dataset.touched = '1'; });
+$('#ruleBtn').onclick = async () => {
+  const n = Number($('#ruleN').value);
+  if (!n) return toast('번호를 넣어주세요');
+  const b = $('#ruleBtn'); b.disabled = true; b.textContent = '요청 중...';
+  try {
+    await putJson(`data/requests/${Date.now()}.json`, { rule: { n, type: $('#ruleType').value, memo: $('#ruleMemo').value.trim() } }, `철칙 #${n} 요청`);
+    $('#ruleMemo').value = ''; $('#ruleN').value = n + 1; delete $('#ruleN').dataset.touched;
+    toast(`철칙 #${n} 만드는 중. 2~3분 뒤 검토 탭에서 확인`);
+  } catch (e) { toast(e.message); }
+  b.disabled = false; b.textContent = '철칙 글 + 릴스 만들기';
+};
 
 // ---------- 기록 ----------
 async function loadHist() {
