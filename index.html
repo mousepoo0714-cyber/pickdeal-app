@@ -65,6 +65,9 @@ details{margin-top:8px}summary{font-size:13px;color:var(--n);font-weight:600;pad
 .reel{display:block;width:100%;max-height:560px;border-radius:12px;background:#000;margin-top:10px}
 .vwait{margin-top:10px;padding:30px 0;text-align:center;border-radius:12px;background:var(--bg);color:var(--sub);font-size:13px}
 .rf{display:grid;gap:2px}
+.cp{border:1px solid var(--line);background:var(--card);color:var(--tx);border-radius:8px;padding:3px 10px;font:600 12px inherit;margin-left:6px}
+.cp:active{background:var(--y)}
+a.btn{text-decoration:none}
 .empty{text-align:center;color:var(--sub);padding:40px 0}
 .toast{position:fixed;left:50%;bottom:calc(130px + env(safe-area-inset-bottom));transform:translateX(-50%);background:#222;color:#fff;padding:10px 16px;border-radius:20px;font-size:14px;opacity:0;transition:.2s;pointer-events:none;z-index:9;max-width:90vw;text-align:center}
 .toast.on{opacity:.95}
@@ -281,6 +284,7 @@ function renderDrafts(list) {
       : `<div class="vwait">${d.videoError ? '릴스 만들기 실패: ' + esc(d.videoError) : '릴스 없음'}</div>`;
     return `<div class="card" data-card="${i}">${head}
       ${reelBox}
+      ${d.video?.url ? `<div class="row"><a class="btn y" href="${esc(d.video.url)}" download="pickdeal_${esc(d.id)}.mp4">⬇️ 릴스 저장</a><button class="btn" data-a="copyAll" data-i="${i}">글 전체 복사</button></div>` : ''}
       <details><summary>릴스 문구 고치기</summary><div class="rf">
         <label class="l"><span>1장면 훅 (3줄, 가운데 줄 빨간색)</span></label><textarea rows="3" data-r="hook" data-i="${i}">${esc((r.hook || []).join('\n'))}</textarea>
         <label class="l"><span>2장면 상황 (3줄, "위 / 아래")</span></label><textarea rows="3" data-r="scenes" data-i="${i}">${esc((r.scenes || []).map(x => x.a + ' / ' + x.b).join('\n'))}</textarea>
@@ -293,12 +297,10 @@ function renderDrafts(list) {
       </div></details>
       ${(d.hooks || []).length ? `<details><summary>첫 줄 후보 ${d.hooks.length}개 (누르면 교체)</summary>
         ${d.hooks.map((h, k) => `<button class="hook" data-a="hook" data-i="${i}" data-k="${k}">${esc(h.text)}<small>${esc(h.type)} · ${esc(h.why)}</small></button>`).join('')}</details>` : ''}
-      <label class="l"><span>스레드 본글</span><span data-cnt="t${i}"></span></label>
-      <textarea rows="8" data-f="threads" data-i="${i}">${esc(d.threads)}</textarea>
-      <label class="l"><span>첫 댓글 (링크)</span><span data-cnt="c${i}"></span></label>
-      <textarea rows="4" data-f="comment" data-i="${i}">${esc(d.comment)}</textarea>
-      <label class="l"><span>인스타 캡션</span><span data-cnt="g${i}"></span></label>
-      <textarea rows="6" data-f="insta" data-i="${i}">${esc(d.insta)}</textarea>
+      ${field(d, i, 'threads', '🧵 스레드 본글', 8)}
+      ${field(d, i, 'comment', '💬 스레드 첫 댓글 (링크)', 4)}
+      ${field(d, i, 'insta', '📸 인스타 캡션', 6)}
+      ${d.youtubeTitle != null ? field(d, i, 'youtubeTitle', '▶️ 유튜브 제목', 2) + field(d, i, 'youtube', '▶️ 유튜브 설명', 6) : ''}
       ${d.check ? `<div class="check">점검: ${esc(d.check)}</div>` : ''}
       <div class="tg"><label><input type="checkbox" data-t="threads" data-i="${i}" checked> 스레드</label><label><input type="checkbox" data-t="insta" data-i="${i}" checked> 인스타</label></div>
       <label class="l"><span>게시 시간 (비우면 바로)</span></label>
@@ -307,15 +309,26 @@ function renderDrafts(list) {
         <button class="btn p" data-a="approve" data-i="${i}">승인</button>
         <button class="btn" data-a="rewrite" data-i="${i}">다시 쓰기</button>
         <button class="btn r" data-a="del" data-i="${i}">버리기</button>
-      </div></div>`;
+      </div>
+      <button class="btn w" data-a="manual" data-i="${i}" style="margin-top:8px">✅ 직접 올렸어요 (기록으로 옮기기)</button></div>`;
   }).join('');
   document.querySelectorAll('#revList textarea[data-f]').forEach(countChars);
+}
+const LIMITS = { threads: 500, comment: 500, insta: 2200, youtubeTitle: 100, youtube: 5000 };
+function field(d, i, f, label, rows) {
+  return `<label class="l"><span>${label}</span><span><span data-cnt="${f}${i}"></span> <button class="cp" data-a="copy" data-f2="${f}" data-i="${i}">복사</button></span></label>
+      <textarea rows="${rows}" data-f="${f}" data-i="${i}">${esc(d[f])}</textarea>`;
+}
+async function copyText(text, label) {
+  try { await navigator.clipboard.writeText(text); }
+  catch { const t = document.createElement('textarea'); t.value = text; document.body.appendChild(t); t.select(); document.execCommand('copy'); t.remove(); }
+  toast(label + ' 복사했어요');
 }
 function countChars(t) {
   const i = t.dataset.i, f = t.dataset.f; if (!f) return;
   const n = [...t.value].length;
-  const lim = f === 'insta' ? 2200 : 500;
-  const el = document.querySelector(`[data-cnt="${f[0] === 'i' ? 'g' : f[0]}${i}"]`);
+  const lim = LIMITS[f] || 500;
+  const el = document.querySelector(`[data-cnt="${f}${i}"]`);
   if (el) { el.textContent = `${n}/${lim}`; el.className = n > lim ? 'over' : ''; }
 }
 $('#revList').addEventListener('input', e => {
@@ -329,7 +342,16 @@ $('#revList').addEventListener('click', async e => {
     const ta = document.querySelector(`textarea[data-f="threads"][data-i="${i}"]`); ta.value = d.threads; countChars(ta);
     return toast('첫 줄 바꿨어요');
   }
+  if (a === 'copy') {
+    const names = { threads: '스레드 본글', comment: '첫 댓글', insta: '인스타 캡션', youtubeTitle: '유튜브 제목', youtube: '유튜브 설명' };
+    return copyText(d[b.dataset.f2] || '', names[b.dataset.f2]);
+  }
+  if (a === 'copyAll') {
+    const parts = [['🧵 스레드 본글', d.threads], ['💬 첫 댓글', d.comment], ['📸 인스타', d.insta], ['▶️ 유튜브 제목', d.youtubeTitle], ['▶️ 유튜브 설명', d.youtube]].filter(x => x[1]);
+    return copyText(parts.map(([k, v]) => `${k}\n${v}`).join('\n\n────────\n\n'), '글 전체');
+  }
   if (a === 'del' && !confirm('이 글을 버릴까요?')) return;
+  if (a === 'manual' && !confirm('직접 올린 걸로 기록하고 검토 목록에서 뺄까요?')) return;
   if (a === 'approve' && !d.video?.url && !confirm('릴스가 없어요. 상품 사진으로 올릴까요?')) return;
   const { _path, _sha, ...data } = d;
   b.disabled = true;
@@ -351,6 +373,15 @@ $('#revList').addEventListener('click', async e => {
       await putJson(`data/requests/${Date.now()}.json`, { render: { draftId: d.id, reel } }, '릴스 다시 만들기');
       toast('릴스 다시 만드는 중. 2~3분 뒤 새로고침');
       b.disabled = false; return;
+    } else if (a === 'manual') {
+      const cur = await gh('data/history.json', { allow404: true });
+      const hist = cur ? JSON.parse(decodeURIComponent(escape(atob(cur.content.replace(/\n/g, ''))))) : { posted: [] };
+      const now = new Date();
+      hist.posted.unshift({ productId: d.productId, name: d.product.name, image: d.product.image, link: d.link, postedAt: now.toISOString(),
+        postedKst: `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`, manual: true, threadsUrl: '', instaUrl: '' });
+      await putJson('data/history.json', hist, '직접 게시 기록', cur?.sha);
+      await delFile(_path, _sha, '직접 게시');
+      toast('기록으로 옮겼어요');
     } else if (a === 'unapprove') {
       await putJson(_path, { ...data, status: 'draft' }, '승인 취소', _sha); toast('검토로 돌렸어요');
     } else if (a === 'retryPub') {
@@ -374,7 +405,7 @@ async function loadHist() {
       <img src="${esc(x.image)}" alt="" referrerpolicy="no-referrer">
       <div style="min-width:0"><div class="meta" style="margin:0">${esc(x.postedKst)}</div>
       <div style="font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(x.name)}</div>
-      ${x.threadsUrl ? `<a href="${esc(x.threadsUrl)}" target="_blank" rel="noopener">스레드</a>` : ''}${x.instaUrl ? `<a href="${esc(x.instaUrl)}" target="_blank" rel="noopener">인스타</a>` : ''}</div></div>`).join('')
+      ${x.manual ? '<span class="badge">직접 올림</span>' : ''}${x.threadsUrl ? `<a href="${esc(x.threadsUrl)}" target="_blank" rel="noopener">스레드</a>` : ''}${x.instaUrl ? `<a href="${esc(x.instaUrl)}" target="_blank" rel="noopener">인스타</a>` : ''}</div></div>`).join('')
       : '<p class="empty">아직 올린 글이 없어요</p>';
   } catch (e) { $('#histList').innerHTML = `<p class="empty">${esc(e.message)}</p>`; }
 }
