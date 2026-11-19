@@ -1,0 +1,387 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#1f2a5c">
+<title>Pick Deal</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+:root{--y:#FFD43B;--n:#1f2a5c;--bg:#f5f5f2;--card:#fff;--tx:#1a1c24;--sub:#6e7180;--line:#e4e4de;--red:#e5484d;--ok:#1f9d55}
+@media (prefers-color-scheme:dark){:root{--bg:#111318;--card:#1b1e26;--tx:#eceef3;--sub:#9a9eae;--line:#2c303b}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.5 -apple-system,"Apple SD Gothic Neo","Noto Sans KR",sans-serif;padding-bottom:calc(140px + env(safe-area-inset-bottom))}
+header{position:sticky;top:0;z-index:5;background:var(--n);color:#fff;padding:calc(10px + env(safe-area-inset-top)) 16px 10px;display:flex;align-items:center;gap:8px}
+header h1{font-size:17px;margin:0;flex:1}header h1 b{color:var(--y)}
+header button{background:rgba(255,255,255,.15);color:#fff;border:0;border-radius:8px;padding:6px 10px;font-size:13px}
+main{padding:12px 16px;max-width:640px;margin:0 auto}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:12px}
+.chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:8px;margin-bottom:4px;scrollbar-width:none}
+.chip{flex:none;border:1px solid var(--line);background:var(--card);color:var(--tx);border-radius:20px;padding:6px 12px;font-size:13px}
+.chip.on{background:var(--n);color:#fff;border-color:var(--n)}
+.meta{font-size:13px;color:var(--sub);margin:0 0 10px}
+/* 후보 */
+.prod{display:flex;gap:10px;align-items:flex-start;position:relative}
+.prod img{width:92px;height:92px;object-fit:cover;border-radius:10px;background:var(--bg);flex:none}
+.prod .nm{font-size:14px;line-height:1.35;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.prod .pr{font-weight:700;margin-top:4px}.prod .pr s{color:var(--sub);font-weight:400;font-size:12px;margin-left:4px}.dc{color:var(--red);margin-right:4px}
+.badge{display:inline-block;font-size:11px;padding:1px 7px;border-radius:20px;background:var(--bg);color:var(--sub);margin:4px 4px 0 0}
+.badge.y{background:var(--y);color:#3a2f00}.badge.n{background:var(--n);color:#fff}.badge.ok{background:var(--ok);color:#fff}.badge.r{background:var(--red);color:#fff}
+.sel{border-color:var(--n);box-shadow:0 0 0 2px var(--n) inset}
+.tick{position:absolute;top:-4px;right:-4px;width:26px;height:26px;border-radius:50%;border:2px solid var(--line);background:var(--card);display:flex;align-items:center;justify-content:center;font-weight:700;color:#fff}
+.sel .tick{background:var(--n);border-color:var(--n)}
+.memo{margin-top:8px}
+textarea,input{width:100%;border:1px solid var(--line);border-radius:10px;padding:9px;font:inherit;font-size:14px;background:var(--bg);color:var(--tx)}
+textarea{resize:vertical}
+label.l{display:flex;justify-content:space-between;font-size:12px;color:var(--sub);margin:10px 0 4px}
+.over{color:var(--red);font-weight:700}
+/* 하단 */
+.bar{position:fixed;left:0;right:0;bottom:calc(52px + env(safe-area-inset-bottom));padding:8px 16px;background:linear-gradient(transparent,var(--bg) 30%);z-index:4}
+.btn{display:inline-flex;align-items:center;justify-content:center;border:0;border-radius:10px;padding:10px 12px;font:600 14px/1.1 inherit;background:var(--line);color:var(--tx)}
+.btn.p{background:var(--n);color:#fff}.btn.y{background:var(--y);color:#3a2f00}.btn.r{background:transparent;color:var(--red);border:1px solid var(--red)}
+.btn.w{width:100%;padding:14px;font-size:16px}.btn:disabled{opacity:.5}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.row .btn{flex:1 1 28%}
+nav{position:fixed;left:0;right:0;bottom:0;background:var(--card);border-top:1px solid var(--line);display:flex;padding-bottom:env(safe-area-inset-bottom);z-index:5}
+nav button{flex:1;border:0;background:none;padding:14px 0;font:600 14px inherit;color:var(--sub)}
+nav button.on{color:var(--n)}@media (prefers-color-scheme:dark){nav button.on{color:var(--y)}}
+/* 검토 */
+.dhead{display:flex;gap:10px;align-items:center}
+.dhead img{width:64px;height:64px;object-fit:cover;border-radius:10px;flex:none}
+.dhead .nm{font-size:13px;color:var(--sub);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+details{margin-top:8px}summary{font-size:13px;color:var(--n);font-weight:600;padding:4px 0}
+@media (prefers-color-scheme:dark){summary{color:var(--y)}}
+.hook{display:block;width:100%;text-align:left;border:1px solid var(--line);background:var(--bg);color:var(--tx);border-radius:10px;padding:8px;margin-top:6px;font:inherit;font-size:14px}
+.hook small{display:block;color:var(--sub);font-size:12px}
+.check{font-size:13px;background:var(--bg);border-radius:10px;padding:8px;margin-top:10px;color:var(--sub)}
+.tg{display:flex;gap:14px;margin-top:10px;font-size:14px}.tg label{display:flex;gap:6px;align-items:center}
+.tg input{width:auto}
+.err{color:var(--red);font-size:13px}
+.hist{display:flex;gap:10px;align-items:center}
+.hist img{width:48px;height:48px;object-fit:cover;border-radius:8px;flex:none}
+.hist a{color:var(--n);font-size:13px;margin-right:10px;font-weight:600}
+@media (prefers-color-scheme:dark){.hist a{color:var(--y)}}
+.reel{display:block;width:100%;max-height:560px;border-radius:12px;background:#000;margin-top:10px}
+.vwait{margin-top:10px;padding:30px 0;text-align:center;border-radius:12px;background:var(--bg);color:var(--sub);font-size:13px}
+.rf{display:grid;gap:2px}
+.empty{text-align:center;color:var(--sub);padding:40px 0}
+.toast{position:fixed;left:50%;bottom:calc(130px + env(safe-area-inset-bottom));transform:translateX(-50%);background:#222;color:#fff;padding:10px 16px;border-radius:20px;font-size:14px;opacity:0;transition:.2s;pointer-events:none;z-index:9;max-width:90vw;text-align:center}
+.toast.on{opacity:.95}
+.hide{display:none!important}
+</style>
+</head>
+<body>
+<header><h1><b>Pick</b> Deal</h1><button id="reloadBtn">새로고침</button><button id="setBtn">설정</button></header>
+
+<main>
+  <section id="tab-cand">
+    <div class="chips" id="srcChips"></div>
+    <p class="meta" id="candMeta"></p>
+    <div id="candList"></div>
+  </section>
+
+  <section id="tab-review" class="hide">
+    <div class="chips" id="revChips"></div>
+    <div id="revList"></div>
+  </section>
+
+  <section id="tab-hist" class="hide"><div id="histList"></div></section>
+
+  <section id="tab-set" class="hide">
+    <div class="card">
+      <label class="l">깃허브 아이디</label><input id="cOwner" autocapitalize="off" autocomplete="off">
+      <label class="l">서버 저장소 이름 (비공개)</label><input id="cRepo" autocapitalize="off" autocomplete="off" placeholder="pickdeal-auto">
+      <label class="l">깃허브 토큰</label><input id="cToken" type="password" autocomplete="off">
+      <button class="btn p w" id="saveBtn" style="margin-top:14px">저장</button>
+      <p class="meta" style="margin-top:8px">토큰은 이 폰에만 저장돼요.</p>
+      <div class="row">
+        <button class="btn" id="runCollect">후보 지금 다시 모으기</button>
+        <button class="btn" id="runPublish">게시 지금 확인</button>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div class="bar" id="candBar"><button class="btn y w" id="writeBtn" disabled>상품을 골라주세요</button></div>
+
+<nav>
+  <button data-tab="cand" class="on">후보</button>
+  <button data-tab="review">검토 <span id="revCnt"></span></button>
+  <button data-tab="hist">기록</button>
+</nav>
+<div class="toast" id="toast"></div>
+
+<script>
+const $ = s => document.querySelector(s);
+const store = {
+  get(k, d = '') { try { return localStorage.getItem(k) ?? d; } catch { return d; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch {} }
+};
+const cfg = () => ({ owner: store.get('owner'), repo: store.get('repo'), token: store.get('token') });
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const won = n => n == null ? '' : Number(n).toLocaleString('ko-KR') + '원';
+function toast(m) { const t = $('#toast'); t.textContent = m; t.classList.add('on'); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('on'), 2200); }
+
+// ---------- 깃허브 ----------
+async function api(url, opt = {}) {
+  const c = cfg();
+  if (!c.owner || !c.repo || !c.token) { show('set'); throw new Error('설정을 먼저 해주세요'); }
+  const res = await fetch(`https://api.github.com/repos/${c.owner}/${c.repo}/${url}`, {
+    ...opt, cache: 'no-store',
+    headers: {
+      Authorization: `Bearer ${c.token}`,
+      Accept: opt.raw ? 'application/vnd.github.raw+json' : 'application/vnd.github+json',
+      'X-GitHub-Api-Version': '2022-11-28',
+      ...(opt.body ? { 'Content-Type': 'application/json' } : {})
+    }
+  });
+  if (res.status === 404 && opt.allow404) return null;
+  if (res.status === 409 || res.status === 422) throw new Error('다른 변경과 겹쳤어요. 새로고침 후 다시 해주세요');
+  if (!res.ok) throw new Error(`깃허브 오류 ${res.status}`);
+  if (res.status === 204) return {};
+  return opt.raw ? res.text() : res.json();
+}
+const gh = (path, opt) => api(`contents/${path}`, opt);
+const getJson = async (path, fallback) => { const t = await gh(path, { raw: true, allow404: true }); return t ? JSON.parse(t) : fallback; };
+const b64 = s => btoa(unescape(encodeURIComponent(s)));
+const putJson = (path, obj, msg, sha) => gh(path, { method: 'PUT', body: JSON.stringify({ message: msg, content: b64(JSON.stringify(obj, null, 2)), ...(sha ? { sha } : {}) }) });
+const delFile = (path, sha, msg) => gh(path, { method: 'DELETE', body: JSON.stringify({ message: msg, sha }) });
+const dispatch = wf => api(`actions/workflows/${wf}/dispatches`, { method: 'POST', body: JSON.stringify({ ref: 'main' }) });
+
+// ---------- 탭 ----------
+let tab = 'cand';
+function show(t) {
+  tab = t;
+  ['cand', 'review', 'hist', 'set'].forEach(n => $('#tab-' + n).classList.toggle('hide', n !== t));
+  document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.tab === t));
+  $('#candBar').classList.toggle('hide', t !== 'cand');
+  if (t === 'cand' && !cand) loadCand();
+  if (t === 'review') loadDrafts();
+  if (t === 'hist') loadHist();
+}
+document.querySelectorAll('nav button').forEach(b => b.onclick = () => show(b.dataset.tab));
+$('#reloadBtn').onclick = () => { if (tab === 'cand') loadCand(); else if (tab === 'review') loadDrafts(); else if (tab === 'hist') loadHist(); };
+$('#setBtn').onclick = () => { const c = cfg(); $('#cOwner').value = c.owner; $('#cRepo').value = c.repo; $('#cToken').value = c.token; show('set'); };
+$('#saveBtn').onclick = () => {
+  store.set('owner', $('#cOwner').value.trim()); store.set('repo', $('#cRepo').value.trim()); store.set('token', $('#cToken').value.trim());
+  toast('저장했어요'); cand = null; show('cand');
+};
+$('#runCollect').onclick = async () => { try { await dispatch('collect.yml'); toast('후보 모으는 중. 1~2분 뒤 새로고침'); } catch (e) { toast(e.message); } };
+$('#runPublish').onclick = async () => { try { await dispatch('publish.yml'); toast('게시 확인 시작'); } catch (e) { toast(e.message); } };
+
+// ---------- 후보 ----------
+let cand = null, filter = '전체';
+const picked = new Map(); // id -> memo
+let requested = new Set(JSON.parse(store.get('requested', '[]') || '[]'));
+
+async function loadCand() {
+  $('#candList').innerHTML = '<p class="empty">불러오는 중...</p>';
+  try {
+    cand = await getJson('data/candidates.json', { items: [] });
+    $('#candMeta').textContent = cand.updatedAt ? `${cand.updatedAt} 기준 ${cand.items.length}개 · 매일 아침 7시 갱신` : '아직 후보가 없어요. 설정에서 "후보 지금 다시 모으기"를 눌러주세요.';
+    renderCand();
+  } catch (e) { $('#candList').innerHTML = `<p class="empty">${esc(e.message)}</p>`; }
+}
+function renderCand() {
+  const items = cand?.items || [];
+  const cats = ['전체', '골드박스', ...new Set(items.filter(i => i.source === '베스트').map(i => i.category))];
+  $('#srcChips').innerHTML = cats.map(c => `<button class="chip ${c === filter ? 'on' : ''}" data-f="${esc(c)}">${esc(c)}</button>`).join('');
+  const list = items.filter(i => filter === '전체' || (filter === '골드박스' ? i.source === '골드박스' : i.category === filter && i.source === '베스트'));
+  $('#candList').innerHTML = list.length ? list.map(i => {
+    const on = picked.has(i.id);
+    return `<div class="card ${on ? 'sel' : ''}" data-id="${esc(i.id)}">
+      <div class="prod" data-pick="${esc(i.id)}">
+        <img src="${esc(i.image)}" alt="" loading="lazy" referrerpolicy="no-referrer">
+        <div style="flex:1;min-width:0">
+          <div class="nm">${esc(i.name)}</div>
+          <div class="pr">${i.discountRate ? `<span class="dc">${i.discountRate}%</span>` : ''}${won(i.price)}${i.originalPrice && i.originalPrice !== i.price ? `<s>${won(i.originalPrice)}</s>` : ''}</div>
+          <span class="badge ${i.source === '골드박스' ? 'y' : 'n'}">${esc(i.source)}${i.rank ? ' ' + i.rank + '위' : ''}</span>${i.rocket ? '<span class="badge">로켓</span>' : ''}${i.category ? `<span class="badge">${esc(i.category)}</span>` : ''}${requested.has(i.id) ? '<span class="badge ok">글 요청함</span>' : ''}
+        </div>
+        <div class="tick">${on ? '✓' : ''}</div>
+      </div>
+      ${on ? `<div class="memo"><input data-memo="${esc(i.id)}" value="${esc(picked.get(i.id))}" placeholder="써본 경험 메모 (선택, 있으면 후기에 반영)"></div>` : ''}
+    </div>`;
+  }).join('') : '<p class="empty">상품이 없어요</p>';
+  const n = picked.size;
+  $('#writeBtn').disabled = !n;
+  $('#writeBtn').textContent = n ? `${n}개 글 만들기` : '상품을 골라주세요';
+}
+$('#srcChips').onclick = e => { const b = e.target.closest('[data-f]'); if (b) { filter = b.dataset.f; renderCand(); } };
+$('#candList').addEventListener('click', e => {
+  if (e.target.closest('input')) return;
+  const p = e.target.closest('[data-pick]'); if (!p) return;
+  const id = p.dataset.pick;
+  picked.has(id) ? picked.delete(id) : picked.set(id, '');
+  renderCand();
+});
+$('#candList').addEventListener('input', e => { const m = e.target.dataset.memo; if (m) picked.set(m, e.target.value); });
+
+$('#writeBtn').onclick = async () => {
+  const items = [...picked].map(([id, memo]) => ({ id: `${id}-${Date.now().toString(36)}`, product: cand.items.find(i => i.id === id), memo: memo.trim() })).filter(x => x.product);
+  if (!items.length) return;
+  const b = $('#writeBtn'); b.disabled = true; b.textContent = '요청 중...';
+  try {
+    await putJson(`data/requests/${Date.now()}.json`, { items }, `글 요청 ${items.length}개`);
+    items.forEach(x => requested.add(x.product.id));
+    store.set('requested', JSON.stringify([...requested].slice(-300)));
+    picked.clear();
+    toast(`${items.length}개 글 쓰는 중. 1개당 약 15초, 검토 탭에서 확인`);
+  } catch (e) { toast(e.message); }
+  renderCand();
+};
+
+// ---------- 검토 ----------
+let drafts = [], revFilter = '검토';
+async function loadDrafts() {
+  $('#revList').innerHTML = '<p class="empty">불러오는 중...</p>';
+  try {
+    const dir = (await gh('data/drafts', { allow404: true })) || [];
+    const files = dir.filter(f => f.name.endsWith('.json'));
+    drafts = (await Promise.all(files.map(async f => {
+      try { return { ...JSON.parse(await gh(f.path, { raw: true })), _path: f.path, _sha: f.sha }; } catch { return null; }
+    }))).filter(Boolean).sort((a, b) => (a.createdAt || '').localeCompare(b.createdAt || ''));
+    const reqDir = (await gh('data/requests', { allow404: true })) || [];
+    const waiting = reqDir.filter(f => f.name.endsWith('.json')).length;
+    const cnt = drafts.filter(d => d.status === 'draft').length;
+    $('#revCnt').textContent = cnt ? `(${cnt})` : '';
+    const groups = { 검토: d => d.status === 'draft', 예약: d => d.status === 'approved', 오류: d => d.status === 'error' || d.status === 'failed' };
+    $('#revChips').innerHTML = Object.keys(groups).map(k => `<button class="chip ${k === revFilter ? 'on' : ''}" data-r="${k}">${k} ${drafts.filter(groups[k]).length}</button>`).join('')
+      + (waiting ? `<span class="chip">글 쓰는 중 ${waiting}건</span>` : '');
+    renderDrafts(drafts.filter(groups[revFilter]));
+  } catch (e) { $('#revList').innerHTML = `<p class="empty">${esc(e.message)}</p>`; }
+}
+$('#revChips').onclick = e => { const b = e.target.closest('[data-r]'); if (b) { revFilter = b.dataset.r; loadDrafts(); } };
+
+function pad(n) { return String(n).padStart(2, '0'); }
+function localInput(d) { return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`; }
+function fmt(iso) { const d = new Date(iso); return `${d.getMonth() + 1}/${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())}`; }
+
+function renderDrafts(list) {
+  if (!list.length) { $('#revList').innerHTML = '<p class="empty">없어요</p>'; return; }
+  $('#revList').innerHTML = list.map(d => {
+    const i = drafts.indexOf(d), p = d.product || {};
+    const head = `<div class="dhead"><img src="${esc(p.image)}" alt="" referrerpolicy="no-referrer"><div style="min-width:0"><div class="nm">${esc(p.name)}</div>
+      <span class="badge">${won(p.price)}</span>${d.memo ? '<span class="badge y">실사용 메모</span>' : ''}</div></div>`;
+    if (d.status === 'error' || d.status === 'failed') return `<div class="card">${head}
+      <p class="err">${esc(d.error || d.lastError)}</p>
+      <div class="row">${d.status === 'failed' ? `<button class="btn p" data-a="retryPub" data-i="${i}">게시 다시 시도</button>` : `<button class="btn p" data-a="rewrite" data-i="${i}">다시 쓰기</button>`}
+      <button class="btn r" data-a="del" data-i="${i}">버리기</button></div></div>`;
+    if (d.status === 'approved') {
+      const r = d.result || {};
+      return `<div class="card">${head}
+        <p class="meta" style="margin:8px 0 0">${d.publishAt ? fmt(d.publishAt) + ' 게시 예약' : '곧 게시'} · ${[d.targets?.threads !== false ? '스레드' : '', d.targets?.insta !== false ? '인스타' : ''].filter(Boolean).join(', ')}
+        ${r.threads ? '<span class="badge ok">스레드 완료</span>' : ''}${r.insta ? '<span class="badge ok">인스타 완료</span>' : ''}</p>
+        ${d.lastError ? `<p class="err">${esc(d.lastError)} (${d.tries}/3)</p>` : ''}
+        <div class="row"><button class="btn" data-a="unapprove" data-i="${i}">승인 취소</button></div></div>`;
+    }
+    const r = d.reel || {};
+    const reelBox = d.video?.url
+      ? `<video class="reel" src="${esc(d.video.url)}" controls playsinline muted preload="metadata" onerror="this.outerHTML='<div class=&quot;vwait&quot;>릴스 영상 공개 준비 중 (1~3분 뒤 새로고침)</div>'"></video>`
+      : `<div class="vwait">${d.videoError ? '릴스 만들기 실패: ' + esc(d.videoError) : '릴스 없음'}</div>`;
+    return `<div class="card" data-card="${i}">${head}
+      ${reelBox}
+      <details><summary>릴스 문구 고치기</summary><div class="rf">
+        <label class="l"><span>1장면 훅 (3줄, 가운데 줄 빨간색)</span></label><textarea rows="3" data-r="hook" data-i="${i}">${esc((r.hook || []).join('\n'))}</textarea>
+        <label class="l"><span>2장면 상황 (3줄, "위 / 아래")</span></label><textarea rows="3" data-r="scenes" data-i="${i}">${esc((r.scenes || []).map(x => x.a + ' / ' + x.b).join('\n'))}</textarea>
+        <label class="l"><span>2장면 빨간 결론</span></label><input data-r="punch" data-i="${i}" value="${esc(r.punch)}">
+        <label class="l"><span>3장면 사진 위 제목 (2줄)</span></label><textarea rows="2" data-r="head" data-i="${i}">${esc((r.head || []).join('\n'))}</textarea>
+        <label class="l"><span>3장면 특징 배지 (2줄)</span></label><textarea rows="2" data-r="badges" data-i="${i}">${esc((r.badges || []).join('\n'))}</textarea>
+        <label class="l"><span>4장면 마무리</span></label><input data-r="close" data-i="${i}" value="${esc(r.close)}">
+        <label class="l"><span>4장면 질문 (3줄)</span></label><textarea rows="3" data-r="question" data-i="${i}">${esc((r.question || []).join('\n'))}</textarea>
+        <button class="btn y w" data-a="rerender" data-i="${i}" style="margin-top:10px">이 문구로 릴스 다시 만들기</button>
+      </div></details>
+      ${(d.hooks || []).length ? `<details><summary>첫 줄 후보 ${d.hooks.length}개 (누르면 교체)</summary>
+        ${d.hooks.map((h, k) => `<button class="hook" data-a="hook" data-i="${i}" data-k="${k}">${esc(h.text)}<small>${esc(h.type)} · ${esc(h.why)}</small></button>`).join('')}</details>` : ''}
+      <label class="l"><span>스레드 본글</span><span data-cnt="t${i}"></span></label>
+      <textarea rows="8" data-f="threads" data-i="${i}">${esc(d.threads)}</textarea>
+      <label class="l"><span>첫 댓글 (링크)</span><span data-cnt="c${i}"></span></label>
+      <textarea rows="4" data-f="comment" data-i="${i}">${esc(d.comment)}</textarea>
+      <label class="l"><span>인스타 캡션</span><span data-cnt="g${i}"></span></label>
+      <textarea rows="6" data-f="insta" data-i="${i}">${esc(d.insta)}</textarea>
+      ${d.check ? `<div class="check">점검: ${esc(d.check)}</div>` : ''}
+      <div class="tg"><label><input type="checkbox" data-t="threads" data-i="${i}" checked> 스레드</label><label><input type="checkbox" data-t="insta" data-i="${i}" checked> 인스타</label></div>
+      <label class="l"><span>게시 시간 (비우면 바로)</span></label>
+      <input type="datetime-local" data-time="${i}" min="${localInput(new Date())}" value="">
+      <div class="row">
+        <button class="btn p" data-a="approve" data-i="${i}">승인</button>
+        <button class="btn" data-a="rewrite" data-i="${i}">다시 쓰기</button>
+        <button class="btn r" data-a="del" data-i="${i}">버리기</button>
+      </div></div>`;
+  }).join('');
+  document.querySelectorAll('#revList textarea[data-f]').forEach(countChars);
+}
+function countChars(t) {
+  const i = t.dataset.i, f = t.dataset.f; if (!f) return;
+  const n = [...t.value].length;
+  const lim = f === 'insta' ? 2200 : 500;
+  const el = document.querySelector(`[data-cnt="${f[0] === 'i' ? 'g' : f[0]}${i}"]`);
+  if (el) { el.textContent = `${n}/${lim}`; el.className = n > lim ? 'over' : ''; }
+}
+$('#revList').addEventListener('input', e => {
+  const t = e.target; if (t.dataset.f) { drafts[t.dataset.i][t.dataset.f] = t.value; countChars(t); }
+});
+$('#revList').addEventListener('click', async e => {
+  const b = e.target.closest('[data-a]'); if (!b) return;
+  const i = +b.dataset.i, d = drafts[i], a = b.dataset.a;
+  if (a === 'hook') {
+    const lines = d.threads.split('\n'); lines[0] = d.hooks[+b.dataset.k].text; d.threads = lines.join('\n');
+    const ta = document.querySelector(`textarea[data-f="threads"][data-i="${i}"]`); ta.value = d.threads; countChars(ta);
+    return toast('첫 줄 바꿨어요');
+  }
+  if (a === 'del' && !confirm('이 글을 버릴까요?')) return;
+  if (a === 'approve' && !d.video?.url && !confirm('릴스가 없어요. 상품 사진으로 올릴까요?')) return;
+  const { _path, _sha, ...data } = d;
+  b.disabled = true;
+  try {
+    if (a === 'approve') {
+      if ([...d.threads].length > 500 || [...d.comment].length > 500) { b.disabled = false; return toast('스레드는 500자까지예요'); }
+      const t = document.querySelector(`[data-time="${i}"]`).value;
+      const targets = { threads: document.querySelector(`[data-t="threads"][data-i="${i}"]`).checked, insta: document.querySelector(`[data-t="insta"][data-i="${i}"]`).checked };
+      if (!targets.threads && !targets.insta) { b.disabled = false; return toast('올릴 곳을 하나 이상 골라주세요'); }
+      await putJson(_path, { ...data, status: 'approved', targets, publishAt: t ? new Date(t).toISOString() : new Date().toISOString(), approvedAt: new Date().toISOString() }, '승인', _sha);
+      toast(t ? `${fmt(new Date(t).toISOString())} 예약했어요` : '승인! 1~2분 안에 올라가요');
+    } else if (a === 'rerender') {
+      const v = k => document.querySelector(`[data-r="${k}"][data-i="${i}"]`).value;
+      const ls = k => v(k).split('\n').map(x => x.trim()).filter(Boolean);
+      const reel = {
+        hook: ls('hook'), punch: v('punch').trim(), head: ls('head'), badges: ls('badges'), close: v('close').trim(), question: ls('question'),
+        scenes: ls('scenes').map(x => { const [a2, ...b2] = x.split('/'); return { a: (a2 || '').trim(), b: b2.join('/').trim() }; })
+      };
+      await putJson(`data/requests/${Date.now()}.json`, { render: { draftId: d.id, reel } }, '릴스 다시 만들기');
+      toast('릴스 다시 만드는 중. 2~3분 뒤 새로고침');
+      b.disabled = false; return;
+    } else if (a === 'unapprove') {
+      await putJson(_path, { ...data, status: 'draft' }, '승인 취소', _sha); toast('검토로 돌렸어요');
+    } else if (a === 'retryPub') {
+      await putJson(_path, { ...data, status: 'approved', tries: 0, lastError: '' }, '게시 재시도', _sha); toast('다시 올려볼게요');
+    } else if (a === 'rewrite') {
+      await putJson(`data/requests/${Date.now()}.json`, { items: [{ id: `${d.product.id}-${Date.now().toString(36)}`, product: d.product, memo: d.memo || '', link: d.link }] }, '다시 쓰기');
+      await delFile(_path, _sha, '다시 쓰기'); toast('다시 쓰는 중. 잠시 후 새로고침');
+    } else if (a === 'del') {
+      await delFile(_path, _sha, '버리기'); toast('버렸어요');
+    }
+    loadDrafts();
+  } catch (err) { toast(err.message); b.disabled = false; }
+});
+
+// ---------- 기록 ----------
+async function loadHist() {
+  $('#histList').innerHTML = '<p class="empty">불러오는 중...</p>';
+  try {
+    const h = await getJson('data/history.json', { posted: [] });
+    $('#histList').innerHTML = h.posted.length ? h.posted.slice(0, 100).map(x => `<div class="card hist">
+      <img src="${esc(x.image)}" alt="" referrerpolicy="no-referrer">
+      <div style="min-width:0"><div class="meta" style="margin:0">${esc(x.postedKst)}</div>
+      <div style="font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(x.name)}</div>
+      ${x.threadsUrl ? `<a href="${esc(x.threadsUrl)}" target="_blank" rel="noopener">스레드</a>` : ''}${x.instaUrl ? `<a href="${esc(x.instaUrl)}" target="_blank" rel="noopener">인스타</a>` : ''}</div></div>`).join('')
+      : '<p class="empty">아직 올린 글이 없어요</p>';
+  } catch (e) { $('#histList').innerHTML = `<p class="empty">${esc(e.message)}</p>`; }
+}
+
+// ---------- 시작 ----------
+if (!cfg().token) $('#setBtn').click(); else loadCand();
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+</script>
+</body>
+</html>
