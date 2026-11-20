@@ -68,6 +68,8 @@ details{margin-top:8px}summary{font-size:13px;color:var(--n);font-weight:600;pad
 .cp{border:1px solid var(--line);background:var(--card);color:var(--tx);border-radius:8px;padding:3px 10px;font:600 12px inherit;margin-left:6px}
 .cp:active{background:var(--y)}
 a.btn{text-decoration:none}
+.slot{font-weight:700;font-size:16px;margin:14px 2px 8px}.slot small{color:var(--sub);font-weight:400;font-size:13px;margin-left:4px}
+.why{margin-top:8px;font-size:13px;background:var(--bg);border-radius:10px;padding:8px;line-height:1.45}
 .empty{text-align:center;color:var(--sub);padding:40px 0}
 .toast{position:fixed;left:50%;bottom:calc(130px + env(safe-area-inset-bottom));transform:translateX(-50%);background:#222;color:#fff;padding:10px 16px;border-radius:20px;font-size:14px;opacity:0;transition:.2s;pointer-events:none;z-index:9;max-width:90vw;text-align:center}
 .toast.on{opacity:.95}
@@ -117,6 +119,7 @@ a.btn{text-decoration:none}
       <label class="l">깃허브 토큰</label><input id="cToken" type="password" autocomplete="off">
       <button class="btn p w" id="saveBtn" style="margin-top:14px">저장</button>
       <p class="meta" style="margin-top:8px">토큰은 이 폰에만 저장돼요.</p>
+      <p class="meta" style="margin-top:10px">상품 모음 페이지 (유튜브, 인스타 프로필 링크에 넣기)<br><a id="picksLink" target="_blank" rel="noopener" style="color:var(--n);font-weight:700;word-break:break-all"></a></p>
       <div class="row">
         <button class="btn" id="runCollect">후보 지금 다시 모으기</button>
         <button class="btn" id="runPublish">게시 지금 확인</button>
@@ -170,6 +173,25 @@ const getJson = async (path, fallback) => { const t = await gh(path, { raw: true
 const b64 = s => btoa(unescape(encodeURIComponent(s)));
 const putJson = (path, obj, msg, sha) => gh(path, { method: 'PUT', body: JSON.stringify({ message: msg, content: b64(JSON.stringify(obj, null, 2)), ...(sha ? { sha } : {}) }) });
 const delFile = (path, sha, msg) => gh(path, { method: 'DELETE', body: JSON.stringify({ message: msg, sha }) });
+// 공개 앱 저장소 (상품 모음 페이지 picks.json)
+const appRepoName = () => store.get('appRepo') || (location.hostname.endsWith('github.io') ? location.pathname.split('/')[1] : '') || 'pickdeal-app';
+async function addPick(d) {
+  const c = cfg();
+  const url = `https://api.github.com/repos/${c.owner}/${appRepoName()}/contents/picks.json`;
+  const H = { Authorization: `Bearer ${c.token}`, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' };
+  const r = await fetch(url, { headers: H, cache: 'no-store' });
+  const cur = r.ok ? await r.json() : null;
+  const data = cur ? JSON.parse(decodeURIComponent(escape(atob(cur.content.replace(/\n/g, ''))))) : { items: [] };
+  const items = (data.items || []).filter(x => String(x.no) !== String(d.no));
+  const no = d.no || Math.max(0, ...items.map(x => Number(x.no) || 0)) + 1;
+  const now = new Date();
+  items.unshift({ no, name: d.pickName || d.product.name.slice(0, 30), line: d.pickLine || '', image: d.product.image, link: d.link,
+    date: `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}` });
+  const res = await fetch(url, { method: 'PUT', headers: { ...H, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message: `상품 모음 ${no}번 추가`, content: b64(JSON.stringify({ updatedAt: now.toISOString(), items: items.slice(0, 100) }, null, 2)), ...(cur?.sha ? { sha: cur.sha } : {}) }) });
+  if (!res.ok) throw new Error(`깃허브 ${res.status}`);
+  return no;
+}
 const dispatch = wf => api(`actions/workflows/${wf}/dispatches`, { method: 'POST', body: JSON.stringify({ ref: 'main' }) });
 
 // ---------- 탭 ----------
@@ -186,7 +208,7 @@ function show(t) {
 }
 document.querySelectorAll('nav button').forEach(b => b.onclick = () => show(b.dataset.tab));
 $('#reloadBtn').onclick = () => { if (tab === 'rule') loadRules(); else if (tab === 'cand') loadCand(); else if (tab === 'review') loadDrafts(); else if (tab === 'hist') loadHist(); };
-$('#setBtn').onclick = () => { const c = cfg(); $('#cOwner').value = c.owner; $('#cRepo').value = c.repo; $('#cToken').value = c.token; show('set'); };
+$('#setBtn').onclick = () => { const u = new URL('picks.html', location.href).href; $('#picksLink').href = u; $('#picksLink').textContent = u; const c = cfg(); $('#cOwner').value = c.owner; $('#cRepo').value = c.repo; $('#cToken').value = c.token; show('set'); };
 $('#saveBtn').onclick = () => {
   store.set('owner', $('#cOwner').value.trim()); store.set('repo', $('#cRepo').value.trim()); store.set('token', $('#cToken').value.trim());
   toast('저장했어요'); cand = null; show('cand');
@@ -195,7 +217,8 @@ $('#runCollect').onclick = async () => { try { await dispatch('collect.yml'); to
 $('#runPublish').onclick = async () => { try { await dispatch('publish.yml'); toast('게시 확인 시작'); } catch (e) { toast(e.message); } };
 
 // ---------- 후보 ----------
-let cand = null, filter = '전체';
+let cand = null, filter = '⭐ 추천';
+const angles = new Map(); // id -> 추천 훅 아이디어
 const picked = new Map(); // id -> memo
 let requested = new Set(JSON.parse(store.get('requested', '[]') || '[]'));
 
@@ -203,16 +226,34 @@ async function loadCand() {
   $('#candList').innerHTML = '<p class="empty">불러오는 중...</p>';
   try {
     cand = await getJson('data/candidates.json', { items: [] });
-    $('#candMeta').textContent = cand.updatedAt ? `${cand.updatedAt} 기준 ${cand.items.length}개 · 매일 아침 7시 갱신` : '아직 후보가 없어요. 설정에서 "후보 지금 다시 모으기"를 눌러주세요.';
+    $('#candMeta').textContent = cand.updatedAt ? `${cand.updatedAt} 기준 로켓배송 ${cand.items.length}개 · 하루 3번(7시, 11시 반, 17시 반) 갱신` : '아직 후보가 없어요. 설정에서 "후보 지금 다시 모으기"를 눌러주세요.';
+    if (!(cand.recs || []).length && filter === '⭐ 추천') filter = '전체';
     renderCand();
   } catch (e) { $('#candList').innerHTML = `<p class="empty">${esc(e.message)}</p>`; }
 }
+function nowSlot() {
+  const h = new Date().getHours();
+  return h < 11 ? 'morning' : h < 17 ? 'lunch' : h < 22 ? 'evening' : 'night';
+}
 function renderCand() {
   const items = cand?.items || [];
-  const cats = ['전체', '골드박스', ...new Set(items.filter(i => i.source === '베스트').map(i => i.category))];
+  const recs = cand?.recs || [];
+  const cats = [...(recs.length ? ['⭐ 추천'] : []), '전체', '골드박스', ...new Set(items.filter(i => i.source === '베스트').map(i => i.category))];
   $('#srcChips').innerHTML = cats.map(c => `<button class="chip ${c === filter ? 'on' : ''}" data-f="${esc(c)}">${esc(c)}</button>`).join('');
-  const list = items.filter(i => filter === '전체' || (filter === '골드박스' ? i.source === '골드박스' : i.category === filter && i.source === '베스트'));
-  $('#candList').innerHTML = list.length ? list.map(i => {
+  if (filter === '⭐ 추천') {
+    const cur = nowSlot();
+    const order = [...recs.filter(r => r.key === cur), ...recs.filter(r => r.key !== cur)];
+    $('#candList').innerHTML = order.map(r => `<div class="slot">🕒 ${esc(r.name)} <small>${esc(r.time)}</small>${r.key === cur ? ' <span class="badge y">지금</span>' : ''}</div>`
+      + r.picks.map(pk => { const i = items.find(x => x.id === pk.id); return i ? card(i, pk) : ''; }).join('')).join('') || '<p class="empty">추천이 없어요</p>';
+  } else {
+    const list = items.filter(i => filter === '전체' || (filter === '골드박스' ? i.source === '골드박스' : i.category === filter && i.source === '베스트'));
+    $('#candList').innerHTML = list.length ? list.map(i => card(i)).join('') : '<p class="empty">상품이 없어요</p>';
+  }
+  const n = picked.size;
+  $('#writeBtn').disabled = !n;
+  $('#writeBtn').textContent = n ? `${n}개 글 만들기` : '상품을 골라주세요';
+}
+function card(i, pk) {
     const on = picked.has(i.id);
     return `<div class="card ${on ? 'sel' : ''}" data-id="${esc(i.id)}">
       <div class="prod" data-pick="${esc(i.id)}">
@@ -224,12 +265,9 @@ function renderCand() {
         </div>
         <div class="tick">${on ? '✓' : ''}</div>
       </div>
+      ${pk ? `<div class="why">💡 ${esc(pk.reason)}<br><b>첫 줄:</b> ${esc(pk.hook)}</div>` : ''}
       ${on ? `<div class="memo"><input data-memo="${esc(i.id)}" value="${esc(picked.get(i.id))}" placeholder="써본 경험 메모 (선택, 있으면 후기에 반영)"></div>` : ''}
     </div>`;
-  }).join('') : '<p class="empty">상품이 없어요</p>';
-  const n = picked.size;
-  $('#writeBtn').disabled = !n;
-  $('#writeBtn').textContent = n ? `${n}개 글 만들기` : '상품을 골라주세요';
 }
 $('#srcChips').onclick = e => { const b = e.target.closest('[data-f]'); if (b) { filter = b.dataset.f; renderCand(); } };
 $('#candList').addEventListener('click', e => {
@@ -237,12 +275,14 @@ $('#candList').addEventListener('click', e => {
   const p = e.target.closest('[data-pick]'); if (!p) return;
   const id = p.dataset.pick;
   picked.has(id) ? picked.delete(id) : picked.set(id, '');
+  const rec = (cand?.recs || []).flatMap(r => r.picks).find(x => x.id === id);
+  if (rec) angles.set(id, `${rec.reason} / 첫 줄 아이디어: ${rec.hook}`);
   renderCand();
 });
 $('#candList').addEventListener('input', e => { const m = e.target.dataset.memo; if (m) picked.set(m, e.target.value); });
 
 $('#writeBtn').onclick = async () => {
-  const items = [...picked].map(([id, memo]) => ({ id: `${id}-${Date.now().toString(36)}`, product: cand.items.find(i => i.id === id), memo: memo.trim() })).filter(x => x.product);
+  const items = [...picked].map(([id, memo]) => ({ id: `${id}-${Date.now().toString(36)}`, product: cand.items.find(i => i.id === id), memo: memo.trim(), angle: angles.get(id) || '' })).filter(x => x.product);
   if (!items.length) return;
   const b = $('#writeBtn'); b.disabled = true; b.textContent = '요청 중...';
   try {
@@ -289,7 +329,7 @@ function renderDrafts(list) {
       ? `<div><span class="badge n">쇼핑왕의 철칙 #${esc(d.n)}</span><span class="badge">${esc(d.type || '')}</span>
          <div style="font-weight:700;margin-top:6px">${esc(d.title || d.memo || '')}</div></div>`
       : `<div class="dhead"><img src="${esc(p.image)}" alt="" referrerpolicy="no-referrer"><div style="min-width:0"><div class="nm">${esc(p.name)}</div>
-      <span class="badge">${won(p.price)}</span>${d.memo ? '<span class="badge y">실사용 메모</span>' : ''}</div></div>`;
+      ${d.no ? `<span class="badge y">${esc(d.no)}번</span>` : ''}<span class="badge">${won(p.price)}</span>${d.memo ? '<span class="badge y">실사용 메모</span>' : ''}</div></div>`;
     if (d.status === 'error' || d.status === 'failed') return `<div class="card">${head}
       <p class="err">${esc(d.error || d.lastError)}</p>
       <div class="row">${d.status === 'failed' ? `<button class="btn p" data-a="retryPub" data-i="${i}">게시 다시 시도</button>` : `<button class="btn p" data-a="rewrite" data-i="${i}">다시 쓰기</button>`}
@@ -419,6 +459,7 @@ $('#revList').addEventListener('click', async e => {
         image: d.product?.image || '', link: d.link || '', postedAt: now.toISOString(),
         postedKst: `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`, manual: true, threadsUrl: '', instaUrl: '' });
       await putJson('data/history.json', hist, '직접 게시 기록', cur?.sha);
+      if (d.kind !== 'rule') { try { await addPick(d); } catch (e) { toast('상품 모음 페이지 추가 실패: ' + e.message); } }
       await delFile(_path, _sha, '직접 게시');
       toast('기록으로 옮겼어요');
     } else if (a === 'unapprove') {
@@ -429,7 +470,7 @@ $('#revList').addEventListener('click', async e => {
       await putJson(`data/requests/${Date.now()}.json`, { rule: { n: d.n, type: d.type, memo: d.memo || '' } }, `철칙 #${d.n} 다시 쓰기`);
       await delFile(_path, _sha, '다시 쓰기'); toast('다시 쓰는 중. 2~3분 뒤 새로고침');
     } else if (a === 'rewrite') {
-      await putJson(`data/requests/${Date.now()}.json`, { items: [{ id: `${d.product.id}-${Date.now().toString(36)}`, product: d.product, memo: d.memo || '', link: d.link }] }, '다시 쓰기');
+      await putJson(`data/requests/${Date.now()}.json`, { items: [{ id: `${d.product.id}-${Date.now().toString(36)}`, product: d.product, memo: d.memo || '', link: d.link, no: d.no }] }, '다시 쓰기');
       await delFile(_path, _sha, '다시 쓰기'); toast('다시 쓰는 중. 잠시 후 새로고침');
     } else if (a === 'del') {
       await delFile(_path, _sha, '버리기'); toast('버렸어요');
