@@ -67,7 +67,7 @@ const GC_CODE = 'pickdeal';
   const get = q => fetch(`https://${GC_CODE}.goatcounter.com/counter/%2Fpicks.json${q}`, { cache: 'no-store' })
     .then(r => r.ok ? r.json() : (r.status === 404 ? { count: '0' } : null)).catch(() => null);
   const box = document.getElementById('stats');
-  Promise.all([get(`?start=${d}&end=${d}`), get('')]).then(([t, a]) => {
+  Promise.all([get(`?start=${d}`), get('')]).then(([t, a]) => {
     if (a) {
       document.getElementById('vToday').textContent = t?.count || '0';
       document.getElementById('vTotal').textContent = a.count || '0';
@@ -84,7 +84,7 @@ const GC_CODE = 'pickdeal';
       box.hidden = false;
       const st = 'body{margin:0;background:transparent}#gcvc{border:0;padding:0;background:transparent;font:900 13px sans-serif;color:#1B2A4A;text-align:left}#gcvc-for,#gcvc-by{display:none}#gcvc-views{font-size:13px;line-height:18px}';
       const opt = { type: 'html', path: '/picks', no_branding: true, style: st, attr: { width: '64', height: '18', style: 'border:0;vertical-align:middle;width:auto;max-width:64px' } };
-      window.goatcounter.visit_count({ ...opt, append: '#gcT', start: d, end: d });
+      window.goatcounter.visit_count({ ...opt, append: '#gcT', start: d });
       window.goatcounter.visit_count({ ...opt, append: '#gcA' });
     }, 200);
   });
