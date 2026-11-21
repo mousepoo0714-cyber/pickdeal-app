@@ -56,16 +56,19 @@ footer{text-align:center;font-size:12px;color:var(--sub);padding:0 16px 30px}
 // 방문자 통계 (GoatCounter). 가입할 때 정한 코드로 바꾸면 돼요.
 const GC_CODE = 'pickdeal';
 (function () {
+  // 도메인 포워딩이 프레임 방식이어도 세도록, 경로는 하나로 고정
+  window.goatcounter = { allow_frame: true, allow_local: true, path: '/picks' };
   const s = document.createElement('script');
   s.async = true; s.src = 'https://gc.zgo.at/count.js';
   s.dataset.goatcounter = `https://${GC_CODE}.goatcounter.com/count`;
   document.head.appendChild(s);
   const d = new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10); // 한국 날짜
-  const get = q => fetch(`https://${GC_CODE}.goatcounter.com/counter/TOTAL.json${q}`).then(r => r.ok ? r.json() : null).catch(() => null);
+  const get = q => fetch(`https://${GC_CODE}.goatcounter.com/counter/TOTAL.json${q}`, { cache: 'no-store' })
+    .then(r => r.ok ? r.json() : (r.status === 404 ? { count: '0' } : null)).catch(() => null);
   Promise.all([get(`?start=${d}&end=${d}`), get('')]).then(([t, a]) => {
     if (!a) return;
     document.getElementById('vToday').textContent = t?.count || '0';
-    document.getElementById('vTotal').textContent = a.count;
+    document.getElementById('vTotal').textContent = a.count || '0';
     document.getElementById('stats').hidden = false;
   });
 })();
