@@ -359,6 +359,7 @@ function renderDrafts(list) {
       ${field(d, i, 'comment', d.kind === 'rule' ? '💬 첫 답글 (내가 먼저 다는 댓글)' : '💬 스레드 첫 댓글 (링크)', d.kind === 'rule' ? 2 : 4)}
       ${field(d, i, 'insta', '📸 인스타 캡션', 6)}
       ${d.youtubeTitle != null ? field(d, i, 'youtubeTitle', '▶️ 유튜브 제목', 2) + field(d, i, 'youtube', '▶️ 유튜브 설명', 6) : ''}
+      ${d.blog != null ? field(d, i, 'blogTitle', '📝 블로그 제목', 2) + field(d, i, 'blog', '📝 블로그 본문', 10) + field(d, i, 'blogTags', '📝 블로그 태그', 2) : ''}
       ${d.check ? `<div class="check">점검: ${esc(d.check)}</div>` : ''}
       <div class="tg"><label><input type="checkbox" data-t="threads" data-i="${i}" checked> 스레드</label><label><input type="checkbox" data-t="insta" data-i="${i}" checked> 인스타</label></div>
       <label class="l"><span>게시 시간 (비우면 바로)</span></label>
@@ -397,7 +398,8 @@ function readReel(d, i) {
   }
   return reel;
 }
-const LIMITS = { threads: 500, comment: 500, insta: 2200, youtubeTitle: 100, youtube: 5000 };
+const LIMITS = { threads: 500, comment: 500, insta: 2200, youtubeTitle: 100, youtube: 5000, blogTitle: 100, blog: 5000, blogTags: 300 };
+const NAMES = { threads: '스레드 본글', comment: '첫 댓글', insta: '인스타 캡션', youtubeTitle: '유튜브 제목', youtube: '유튜브 설명', blogTitle: '블로그 제목', blog: '블로그 본문', blogTags: '블로그 태그' };
 function field(d, i, f, label, rows) {
   return `<label class="l"><span>${label}</span><span><span data-cnt="${f}${i}"></span> <button class="cp" data-a="copy" data-f2="${f}" data-i="${i}">복사</button></span></label>
       <textarea rows="${rows}" data-f="${f}" data-i="${i}">${esc(d[f])}</textarea>`;
@@ -426,11 +428,10 @@ $('#revList').addEventListener('click', async e => {
     return toast('첫 줄 바꿨어요');
   }
   if (a === 'copy') {
-    const names = { threads: '스레드 본글', comment: '첫 댓글', insta: '인스타 캡션', youtubeTitle: '유튜브 제목', youtube: '유튜브 설명' };
-    return copyText(d[b.dataset.f2] || '', names[b.dataset.f2]);
+    return copyText(d[b.dataset.f2] || '', NAMES[b.dataset.f2]);
   }
   if (a === 'copyAll') {
-    const parts = [['🧵 스레드 본글', d.threads], ['💬 첫 댓글', d.comment], ['📸 인스타', d.insta], ['▶️ 유튜브 제목', d.youtubeTitle], ['▶️ 유튜브 설명', d.youtube]].filter(x => x[1]);
+    const parts = [['🧵 스레드 본글', d.threads], ['💬 첫 댓글', d.comment], ['📸 인스타', d.insta], ['▶️ 유튜브 제목', d.youtubeTitle], ['▶️ 유튜브 설명', d.youtube], ['📝 블로그 제목', d.blogTitle], ['📝 블로그 본문', d.blog], ['📝 블로그 태그', d.blogTags]].filter(x => x[1]);
     return copyText(parts.map(([k, v]) => `${k}\n${v}`).join('\n\n────────\n\n'), '글 전체');
   }
   if (a === 'del' && !confirm('이 글을 버릴까요?')) return;
@@ -457,7 +458,7 @@ $('#revList').addEventListener('click', async e => {
       const now = new Date();
       hist.posted.unshift({ kind: d.kind || 'deal', productId: d.productId || '', name: d.kind === 'rule' ? `쇼핑왕의 철칙 #${d.n} ${d.title}` : d.product.name,
         image: d.product?.image || '', link: d.link || '', postedAt: now.toISOString(),
-        postedKst: `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`, manual: true, threadsUrl: '', instaUrl: '' });
+        postedKst: `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`, manual: true, threadsUrl: '', instaUrl: '', blogTitle: d.blogTitle || '', blog: d.blog || '', blogTags: d.blogTags || '' });
       await putJson('data/history.json', hist, '직접 게시 기록', cur?.sha);
       if (d.kind !== 'rule') { try { await addPick(d); } catch (e) { toast('상품 모음 페이지 추가 실패: ' + e.message); } }
       await delFile(_path, _sha, '직접 게시');
@@ -508,14 +509,22 @@ async function loadHist() {
   $('#histList').innerHTML = '<p class="empty">불러오는 중...</p>';
   try {
     const h = await getJson('data/history.json', { posted: [] });
-    $('#histList').innerHTML = h.posted.length ? h.posted.slice(0, 100).map(x => `<div class="card hist">
+    histItems = h.posted.slice(0, 100);
+    $('#histList').innerHTML = h.posted.length ? histItems.map((x, k) => `<div class="card hist">
       <img src="${esc(x.image)}" alt="" referrerpolicy="no-referrer">
       <div style="min-width:0"><div class="meta" style="margin:0">${esc(x.postedKst)}</div>
       <div style="font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(x.name)}</div>
-      ${x.manual ? '<span class="badge">직접 올림</span>' : ''}${x.threadsUrl ? `<a href="${esc(x.threadsUrl)}" target="_blank" rel="noopener">스레드</a>` : ''}${x.instaUrl ? `<a href="${esc(x.instaUrl)}" target="_blank" rel="noopener">인스타</a>` : ''}</div></div>`).join('')
+      ${x.manual ? '<span class="badge">직접 올림</span>' : ''}${x.threadsUrl ? `<a href="${esc(x.threadsUrl)}" target="_blank" rel="noopener">스레드</a>` : ''}${x.instaUrl ? `<a href="${esc(x.instaUrl)}" target="_blank" rel="noopener">인스타</a>` : ''}
+      ${x.blog ? `<div class="row" style="margin-top:6px"><button class="cp" data-h="blogTitle" data-k="${k}">블로그 제목</button><button class="cp" data-h="blog" data-k="${k}">본문</button><button class="cp" data-h="blogTags" data-k="${k}">태그</button></div>` : ''}</div></div>`).join('')
       : '<p class="empty">아직 올린 글이 없어요</p>';
   } catch (e) { $('#histList').innerHTML = `<p class="empty">${esc(e.message)}</p>`; }
 }
+
+let histItems = [];
+$('#histList').addEventListener('click', e => {
+  const b = e.target.closest('[data-h]'); if (!b) return;
+  copyText(histItems[+b.dataset.k]?.[b.dataset.h] || '', NAMES[b.dataset.h]);
+});
 
 // ---------- 시작 ----------
 if (!cfg().token) $('#setBtn').click(); else loadCand();
