@@ -359,6 +359,7 @@ function renderDrafts(list) {
       ${field(d, i, 'comment', d.kind === 'rule' ? '💬 첫 답글 (내가 먼저 다는 댓글)' : '💬 스레드 첫 댓글 (링크)', d.kind === 'rule' ? 2 : 4)}
       ${field(d, i, 'insta', '📸 인스타 캡션', 6)}
       ${d.youtubeTitle != null ? field(d, i, 'youtubeTitle', '▶️ 유튜브 제목', 2) + field(d, i, 'youtube', '▶️ 유튜브 설명', 6) : ''}
+      ${d.blogImg?.url ? `<label class="l"><span>📝 블로그 대표 사진</span></label><img src="${esc(d.blogImg.url)}" alt="" style="width:100%;border-radius:12px;display:block" onerror="this.outerHTML='<div class=&quot;vwait&quot;>사진 공개 준비 중 (1~3분 뒤 새로고침)</div>'"><div class="row"><a class="btn y" href="${esc(d.blogImg.url)}" download="blog_${esc(d.id)}.png">⬇️ 블로그 사진 저장</a></div>` : ''}
       ${d.blog != null ? field(d, i, 'blogTitle', '📝 블로그 제목', 2) + field(d, i, 'blog', '📝 블로그 본문', 10) + field(d, i, 'blogTags', '📝 블로그 태그', 2) : ''}
       ${d.check ? `<div class="check">점검: ${esc(d.check)}</div>` : ''}
       <div class="tg"><label><input type="checkbox" data-t="threads" data-i="${i}" checked> 스레드</label><label><input type="checkbox" data-t="insta" data-i="${i}" checked> 인스타</label></div>
@@ -458,7 +459,7 @@ $('#revList').addEventListener('click', async e => {
       const now = new Date();
       hist.posted.unshift({ kind: d.kind || 'deal', productId: d.productId || '', name: d.kind === 'rule' ? `쇼핑왕의 철칙 #${d.n} ${d.title}` : d.product.name,
         image: d.product?.image || '', link: d.link || '', postedAt: now.toISOString(),
-        postedKst: `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`, manual: true, threadsUrl: '', instaUrl: '', blogTitle: d.blogTitle || '', blog: d.blog || '', blogTags: d.blogTags || '' });
+        postedKst: `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`, manual: true, threadsUrl: '', instaUrl: '', blogTitle: d.blogTitle || '', blog: d.blog || '', blogTags: d.blogTags || '', blogImg: d.blogImg?.url || '' });
       await putJson('data/history.json', hist, '직접 게시 기록', cur?.sha);
       if (d.kind !== 'rule') { try { await addPick(d); } catch (e) { toast('상품 모음 페이지 추가 실패: ' + e.message); } }
       await delFile(_path, _sha, '직접 게시');
@@ -515,7 +516,7 @@ async function loadHist() {
       <div style="min-width:0"><div class="meta" style="margin:0">${esc(x.postedKst)}</div>
       <div style="font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(x.name)}</div>
       ${x.manual ? '<span class="badge">직접 올림</span>' : ''}${x.threadsUrl ? `<a href="${esc(x.threadsUrl)}" target="_blank" rel="noopener">스레드</a>` : ''}${x.instaUrl ? `<a href="${esc(x.instaUrl)}" target="_blank" rel="noopener">인스타</a>` : ''}
-      ${x.blog ? `<div class="row" style="margin-top:6px"><button class="cp" data-h="blogTitle" data-k="${k}">블로그 제목</button><button class="cp" data-h="blog" data-k="${k}">본문</button><button class="cp" data-h="blogTags" data-k="${k}">태그</button></div>` : ''}</div></div>`).join('')
+      ${x.blog ? `<div class="row" style="margin-top:6px"><button class="cp" data-h="blogTitle" data-k="${k}">블로그 제목</button><button class="cp" data-h="blog" data-k="${k}">본문</button><button class="cp" data-h="blogTags" data-k="${k}">태그</button>${x.blogImg ? `<a class="cp" href="${esc(x.blogImg)}" download="blog.png" style="text-decoration:none">사진 저장</a>` : ''}</div>` : ''}</div></div>`).join('')
       : '<p class="empty">아직 올린 글이 없어요</p>';
   } catch (e) { $('#histList').innerHTML = `<p class="empty">${esc(e.message)}</p>`; }
 }
