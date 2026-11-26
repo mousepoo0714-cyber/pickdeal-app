@@ -358,6 +358,7 @@ function renderDrafts(list) {
       ${field(d, i, 'threads', '🧵 스레드 본글', 8)}
       ${field(d, i, 'comment', d.kind === 'rule' ? '💬 첫 답글 (내가 먼저 다는 댓글)' : '💬 스레드 첫 댓글 (링크)', d.kind === 'rule' ? 2 : 4)}
       ${field(d, i, 'insta', '📸 인스타 캡션', 6)}
+      ${d.ytVideo?.url ? `<label class="l"><span>▶️ 유튜브용 영상 (상품 장면 없음, 유료 프로모션 체크 안 해도 됨)</span></label><div class="row" style="margin-top:0"><a class="btn y" href="${esc(d.ytVideo.url)}" download="youtube_${esc(d.id)}.mp4">⬇️ 유튜브용 영상 저장</a><a class="btn" href="${esc(d.ytVideo.url)}" target="_blank" rel="noopener">미리보기</a></div>` : ''}
       ${d.youtubeTitle != null ? field(d, i, 'youtubeTitle', '▶️ 유튜브 제목', 2) + field(d, i, 'youtube', '▶️ 유튜브 설명', 6) : ''}
       ${d.blogImg?.url ? `<label class="l"><span>📝 블로그 대표 사진</span></label><img src="${esc(d.blogImg.url)}" alt="" style="width:100%;border-radius:12px;display:block" onerror="this.outerHTML='<div class=&quot;vwait&quot;>사진 공개 준비 중 (1~3분 뒤 새로고침)</div>'"><div class="row"><a class="btn y" href="${esc(d.blogImg.url)}" download="blog_${esc(d.id)}.png">⬇️ 블로그 사진 저장</a></div>` : ''}
       ${d.blog != null ? field(d, i, 'blogTitle', '📝 블로그 제목', 2) + field(d, i, 'blog', '📝 블로그 본문', 10) + field(d, i, 'blogTags', '📝 블로그 태그', 2) : ''}
@@ -377,13 +378,17 @@ function renderDrafts(list) {
 const REEL_SPEC = {
   deal: [['hook', '1장면 훅 (3줄, 가운데 줄 빨간색)', 'lines', 3], ['scenes', '2장면 상황 (3줄, "위 / 아래")', 'scenes', 3], ['punch', '2장면 빨간 결론', 'text'],
     ['head', '3장면 사진 위 제목 (2줄)', 'lines', 2], ['badges', '3장면 특징 배지 (2줄)', 'lines', 2], ['close', '4장면 마무리', 'text'], ['question', '4장면 질문 (3줄)', 'lines', 3]],
+  info: [['hook', '1장면 훅 (3줄, 가운데 줄 빨간색)', 'lines', 3], ['compare', '2장면 비교 (3줄, "항목 / 값")', 'scenes', 3], ['punch', '2장면 빨간 결론', 'text'],
+    ['tipsTitle', '3장면 제목', 'text'], ['tips', '3장면 정보 (3줄)', 'lines', 3], ['answer', '3장면 한 줄 정리', 'text'],
+    ['head', '4장면 상품 소개 제목 (2줄)', 'lines', 2], ['badges', '4장면 특징 배지 (2줄)', 'lines', 2]],
   rule: [['hook', '1장면 제목 (3줄, 가운데 줄 빨간색)', 'lines', 3], ['scenes', '2장면 상황 (3줄, "위 / 아래")', 'scenes', 3], ['punch', '2장면 빨간 결론', 'text'],
     ['stepsTitle', '3장면 방법 제목', 'text'], ['steps', '3장면 방법 (3줄)', 'lines', 3], ['answer', '3장면 한 줄 정리', 'text'],
     ['rule', '4장면 오늘의 철칙 (2줄)', 'lines', 2], ['question', '4장면 질문 (3줄)', 'lines', 3]]
 };
+function specKey(d) { return d.kind === 'rule' ? 'rule' : d.reel?.compare ? 'info' : 'deal'; }
 function reelEditor(d, i) {
   const r = d.reel || {};
-  return REEL_SPEC[d.kind === 'rule' ? 'rule' : 'deal'].map(([k, label, type, rows]) => {
+  return REEL_SPEC[specKey(d)].map(([k, label, type, rows]) => {
     const head = `<label class="l"><span>${label}</span></label>`;
     if (type === 'text') return head + `<input data-r="${k}" data-i="${i}" value="${esc(r[k])}">`;
     const val = type === 'scenes' ? (r[k] || []).map(x => x.a + ' / ' + x.b).join('\n') : (r[k] || []).join('\n');
@@ -392,7 +397,7 @@ function reelEditor(d, i) {
 }
 function readReel(d, i) {
   const reel = {};
-  for (const [k, , type] of REEL_SPEC[d.kind === 'rule' ? 'rule' : 'deal']) {
+  for (const [k, , type] of REEL_SPEC[specKey(d)]) {
     const v = document.querySelector(`[data-r="${k}"][data-i="${i}"]`).value;
     const ls = v.split('\n').map(x => x.trim()).filter(Boolean);
     reel[k] = type === 'text' ? v.trim() : type === 'scenes' ? ls.map(x => { const [a, ...b] = x.split('/'); return { a: (a || '').trim(), b: b.join('/').trim() }; }) : ls;
@@ -459,7 +464,7 @@ $('#revList').addEventListener('click', async e => {
       const now = new Date();
       hist.posted.unshift({ kind: d.kind || 'deal', productId: d.productId || '', name: d.kind === 'rule' ? `쇼핑왕의 철칙 #${d.n} ${d.title}` : d.product.name,
         image: d.product?.image || '', link: d.link || '', postedAt: now.toISOString(),
-        postedKst: `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`, manual: true, threadsUrl: '', instaUrl: '', blogTitle: d.blogTitle || '', blog: d.blog || '', blogTags: d.blogTags || '', blogImg: d.blogImg?.url || '' });
+        postedKst: `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`, manual: true, threadsUrl: '', instaUrl: '', blogTitle: d.blogTitle || '', blog: d.blog || '', blogTags: d.blogTags || '', blogImg: d.blogImg?.url || '', ytVideo: d.ytVideo?.url || '', youtubeTitle: d.youtubeTitle || '', youtube: d.youtube || '' });
       await putJson('data/history.json', hist, '직접 게시 기록', cur?.sha);
       if (d.kind !== 'rule') { try { await addPick(d); } catch (e) { toast('상품 모음 페이지 추가 실패: ' + e.message); } }
       await delFile(_path, _sha, '직접 게시');
@@ -516,6 +521,7 @@ async function loadHist() {
       <div style="min-width:0"><div class="meta" style="margin:0">${esc(x.postedKst)}</div>
       <div style="font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(x.name)}</div>
       ${x.manual ? '<span class="badge">직접 올림</span>' : ''}${x.threadsUrl ? `<a href="${esc(x.threadsUrl)}" target="_blank" rel="noopener">스레드</a>` : ''}${x.instaUrl ? `<a href="${esc(x.instaUrl)}" target="_blank" rel="noopener">인스타</a>` : ''}
+      ${x.ytVideo ? `<div class="row" style="margin-top:6px"><a class="cp" href="${esc(x.ytVideo)}" download="youtube.mp4" style="text-decoration:none">유튜브 영상 저장</a><button class="cp" data-h="youtubeTitle" data-k="${k}">유튜브 제목</button><button class="cp" data-h="youtube" data-k="${k}">설명</button></div>` : ''}
       ${x.blog ? `<div class="row" style="margin-top:6px"><button class="cp" data-h="blogTitle" data-k="${k}">블로그 제목</button><button class="cp" data-h="blog" data-k="${k}">본문</button><button class="cp" data-h="blogTags" data-k="${k}">태그</button>${x.blogImg ? `<a class="cp" href="${esc(x.blogImg)}" download="blog.png" style="text-decoration:none">사진 저장</a>` : ''}</div>` : ''}</div></div>`).join('')
       : '<p class="empty">아직 올린 글이 없어요</p>';
   } catch (e) { $('#histList').innerHTML = `<p class="empty">${esc(e.message)}</p>`; }
