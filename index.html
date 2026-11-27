@@ -81,6 +81,7 @@ a.btn{text-decoration:none}
 
 <main>
   <section id="tab-cand">
+    <form id="searchForm" style="display:flex;gap:6px;margin-bottom:8px"><input id="searchInput" type="search" placeholder="쿠팡에서 상품 검색 (예: 핫팩 대용량)" style="flex:1;min-width:0;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--card);color:var(--tx);font-size:15px"><button class="btn y" id="searchBtn">검색</button></form>
     <div class="chips" id="srcChips"></div>
     <p class="meta" id="candMeta"></p>
     <div id="candList"></div>
@@ -218,6 +219,8 @@ $('#runPublish').onclick = async () => { try { await dispatch('publish.yml'); to
 
 // ---------- 후보 ----------
 let cand = null, filter = '⭐ 추천';
+let search = null, searchWait = null, searchTimer = null; // 검색 결과 (data/search.json)
+const findItem = id => cand?.items?.find(i => i.id === id) || search?.items?.find(i => i.id === id);
 const angles = new Map(); // id -> 추천 훅 아이디어
 const picked = new Map(); // id -> memo
 let requested = new Set(JSON.parse(store.get('requested', '[]') || '[]'));
@@ -238,9 +241,19 @@ function nowSlot() {
 function renderCand() {
   const items = cand?.items || [];
   const recs = cand?.recs || [];
-  const cats = [...(recs.length ? ['⭐ 추천'] : []), '전체', '골드박스', ...new Set(items.filter(i => i.source === '베스트').map(i => i.category))];
+  const cats = [...(search || searchWait ? ['🔍 검색'] : []), ...(recs.length ? ['⭐ 추천'] : []), '전체', '골드박스', ...new Set(items.filter(i => i.source === '베스트').map(i => i.category))];
   $('#srcChips').innerHTML = cats.map(c => `<button class="chip ${c === filter ? 'on' : ''}" data-f="${esc(c)}">${esc(c)}</button>`).join('');
-  if (filter === '⭐ 추천') {
+  if (filter === '🔍 검색') {
+    if (searchWait) $('#candList').innerHTML = `<p class="empty">"${esc(searchWait.keyword)}" 검색 중... 1~2분 걸려요</p>`;
+    else if (search?.error) $('#candList').innerHTML = `<p class="empty">검색 실패: ${esc(search.error)}</p>`;
+    else {
+      const all = search?.items || [];
+      const rocket = all.filter(i => i.rocket), other = all.filter(i => !i.rocket);
+      $('#candList').innerHTML = `<p class="meta">"${esc(search?.keyword || '')}" 검색 결과 ${all.length}개 (${esc(search?.at || '')})</p>`
+        + (rocket.length ? rocket.map(i => card(i)).join('') : '<p class="empty">로켓배송 상품이 없어요</p>')
+        + (other.length ? `<div class="slot">로켓배송 아님 ${other.length}개</div>` + other.map(i => card(i)).join('') : '');
+    }
+  } else if (filter === '⭐ 추천') {
     const cur = nowSlot();
     const order = [...recs.filter(r => r.key === cur), ...recs.filter(r => r.key !== cur)];
     $('#candList').innerHTML = order.map(r => `<div class="slot">🕒 ${esc(r.name)} <small>${esc(r.time)}</small>${r.key === cur ? ' <span class="badge y">지금</span>' : ''}</div>`
@@ -282,7 +295,7 @@ $('#candList').addEventListener('click', e => {
 $('#candList').addEventListener('input', e => { const m = e.target.dataset.memo; if (m) picked.set(m, e.target.value); });
 
 $('#writeBtn').onclick = async () => {
-  const items = [...picked].map(([id, memo]) => ({ id: `${id}-${Date.now().toString(36)}`, product: cand.items.find(i => i.id === id), memo: memo.trim(), angle: angles.get(id) || '' })).filter(x => x.product);
+  const items = [...picked].map(([id, memo]) => ({ id: `${id}-${Date.now().toString(36)}`, product: findItem(id), memo: memo.trim(), angle: angles.get(id) || '' })).filter(x => x.product);
   if (!items.length) return;
   const b = $('#writeBtn'); b.disabled = true; b.textContent = '요청 중...';
   try {
@@ -293,6 +306,33 @@ $('#writeBtn').onclick = async () => {
     toast(`${items.length}개 글 쓰는 중. 1개당 약 15초, 검토 탭에서 확인`);
   } catch (e) { toast(e.message); }
   renderCand();
+};
+
+// ---------- 검색 ----------
+$('#searchForm').onsubmit = async e => {
+  e.preventDefault();
+  const keyword = $('#searchInput').value.trim();
+  if (!keyword) return;
+  $('#searchInput').blur();
+  const reqId = Date.now().toString(36);
+  try {
+    await putJson(`data/requests/${Date.now()}.json`, { search: { keyword, reqId } }, `검색 ${keyword}`);
+  } catch (err) { return toast(err.message); }
+  searchWait = { keyword, reqId, until: Date.now() + 6 * 60e3 };
+  filter = '🔍 검색'; renderCand();
+  clearInterval(searchTimer);
+  searchTimer = setInterval(async () => {
+    try {
+      const r = await getJson('data/search.json', null);
+      if (r && r.reqId === searchWait?.reqId) {
+        search = r; searchWait = null; clearInterval(searchTimer);
+        if (filter === '🔍 검색') renderCand();
+        toast(r.error ? '검색 실패' : `검색 결과 ${r.items.length}개`);
+      } else if (Date.now() > searchWait?.until) {
+        searchWait = null; clearInterval(searchTimer); toast('검색이 오래 걸려요. 잠시 뒤 다시 해보세요'); renderCand();
+      }
+    } catch {}
+  }, 12000);
 };
 
 // ---------- 검토 ----------
